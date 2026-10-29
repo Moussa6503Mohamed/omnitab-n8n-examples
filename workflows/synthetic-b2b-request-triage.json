@@ -1,0 +1,328 @@
+{
+  "name": "OmniTab | Synthetic B2B Request Triage Demo",
+  "nodes": [
+    {
+      "id": "2a243c2c-2a1f-4057-8ff5-9d2a0e367545",
+      "name": "Run Safe Sample",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        160,
+        320
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "25fa9d01-a8a8-477f-b119-c94716ac86b9",
+      "name": "Generate Synthetic Requests",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        320
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [\n  {json:{requestId:\"DEMO-001\",name:\"Synthetic Buyer\",email:\"buyer@example.com\",service:\"workflow automation\",contactPermission:true,requirements:\"Connect an approval queue\"}},\n  {json:{requestId:\"DEMO-002\",name:\"Synthetic Reviewer\",email:\"\",service:\"AI assistant\",contactPermission:true,requirements:\"Needs qualification review\"}},\n  {json:{requestId:\"DEMO-003\",name:\"Synthetic Opt-Out\",email:\"no-contact@example.com\",service:\"customer support\",contactPermission:false,requirements:\"Do not contact\"}},\n  {json:{requestId:\"DEMO-004\",name:\"Synthetic Unclear\",email:\"unknown@example.com\",service:\"\",contactPermission:true,requirements:\"Needs classification\"}}\n];"
+      }
+    },
+    {
+      "id": "1e0d8dee-0fa4-4778-9100-f32eccc91ac8",
+      "name": "Validate and Classify",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        640,
+        320
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return $input.all().map(item => {\n  const j=item.json;\n  const permitted=j.contactPermission===true;\n  const validEmail=/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(String(j.email||\"\"));\n  const hasService=String(j.service||\"\").trim().length>0;\n  const route=!permitted?\"do_not_contact\":(!validEmail||!hasService?\"manual_review\":\"qualified\");\n  const reason=!permitted?\"No permission to contact\":(!validEmail?\"Contact email missing or invalid\":(!hasService?\"Requested service unspecified\":\"Basic checks passed; human qualification required\"));\n  return {json:{...j,route,reason,synthetic:true}};\n});"
+      }
+    },
+    {
+      "id": "b292eb44-b362-4fee-81b9-2f1e27587c16",
+      "name": "Route Requests with Fallback",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        900,
+        320
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "qualified",
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "qualified"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "outputKey": "manual_review",
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "manual_review"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "outputKey": "do_not_contact",
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "do_not_contact"
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "Investigate"
+        }
+      }
+    },
+    {
+      "id": "0d13359f-1483-404f-a39c-243ea84be4e4",
+      "name": "Qualified - Human Approval",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1210,
+        130
+      ],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": true,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ready_action",
+              "name": "nextAction",
+              "value": "Human sales review - do not contact automatically",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "82df342c-02d0-4d66-bfcd-2b595311724d",
+      "name": "Manual Review Queue",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1210,
+        280
+      ],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": true,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "review_action",
+              "name": "nextAction",
+              "value": "Check missing data manually before contacting",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "e949a6be-1f22-4eba-92c1-fd606246311e",
+      "name": "Do Not Contact",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1210,
+        430
+      ],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": true,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "excluded_action",
+              "name": "nextAction",
+              "value": "No outreach permitted",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "b6f6a508-a41b-4f84-8d81-3ada29b9e1ed",
+      "name": "Unexpected State - Investigate",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1210,
+        580
+      ],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": true,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "fallback_action",
+              "name": "nextAction",
+              "value": "Investigate unexpected category",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "omnitab-note-setup",
+      "name": "Instructions",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        80,
+        20
+      ],
+      "parameters": {
+        "color": 6,
+        "width": 620,
+        "height": 180,
+        "content": "# Demo only — no customer data\nRun **Run Safe Sample** manually. The next node creates four synthetic requests. Replace the sample generator only after defining real data authorization and checking privacy/compliance. No credentials, webhooks, network requests, emails, or CRM writes are configured."
+      }
+    },
+    {
+      "id": "omnitab-note-results",
+      "name": "Expected Outputs",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        800,
+        -20
+      ],
+      "parameters": {
+        "color": 4,
+        "width": 560,
+        "height": 170,
+        "content": "# Test results and routing\nFour synthetic examples: **1 qualified** (still requires human approval), **2 manual review** (missing fields), **1 do not contact** (no permission). Unknown categories are sent to an Investigate fallback. The workflow deliberately does not send messages or write to external systems."
+      }
+    }
+  ],
+  "connections": {
+    "Run Safe Sample": {
+      "main": [
+        [
+          {
+            "node": "Generate Synthetic Requests",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Synthetic Requests": {
+      "main": [
+        [
+          {
+            "node": "Validate and Classify",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate and Classify": {
+      "main": [
+        [
+          {
+            "node": "Route Requests with Fallback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Requests with Fallback": {
+      "main": [
+        [
+          {
+            "node": "Qualified - Human Approval",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Manual Review Queue",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Do Not Contact",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Unexpected State - Investigate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "pinData": {},
+  "tags": []
+}
