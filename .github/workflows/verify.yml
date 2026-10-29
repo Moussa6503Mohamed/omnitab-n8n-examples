@@ -1,0 +1,17 @@
+name: Validate public n8n example
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9e
+      - name: Check Node version
+        run: node --version
+      - name: Verify workflow schema, routing and safety
+        run: node scripts/verify-template.mjs
